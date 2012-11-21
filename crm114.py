@@ -61,36 +61,36 @@ learnOptions = [
 flotingPointReStr = r"(\+|-)?\d+\.?\d*(e(\+|-))?\d*"
 
 # uh oh, just peeked at Crm's source and it looks like each learnMethod has its own output format.
-resultReStr = r"""CLASSIFY succeeds; success probability:\s+(?P<successProbability>%(float)s)\s+pR:\s+(?P<successPr>%(float)s)
+classificationReStr = r"""CLASSIFY succeeds; success probability:\s+(?P<successProbability>%(float)s)\s+pR:\s+(?P<successPr>%(float)s)
 Best match to file #\d+\s+\((?P<bestMatch>.*)\)\s+prob:\s+(?P<matchProbability>%(float)s)\s+pR:\s+(?P<matchPr>%(float)s)  
 Total features in input file:\s+(?P<totalFeatures>\d+)""" % { 'float' : flotingPointReStr }
-resultRe = re.compile(resultReStr) 
+classificationRe = re.compile(classificationReStr) 
 
 #0 (python.css): features: 2922, hits: 0, prob: 5.00e-01, pR:   0.00 
-subresultReStr = r"#\d+\s+\((?P<model>.*)\):\s+features:\s+(?P<features>\d+),\s+hits:\s+(?P<hits>\d+),\s+prob:\s+" + \
+subClassificationReStr = r"#\d+\s+\((?P<model>.*)\):\s+features:\s+(?P<features>\d+),\s+hits:\s+(?P<hits>\d+),\s+prob:\s+" + \
     r"(?P<prob>%(float)s),\s+pR:\s+(?P<pr>%(float)s)" % { 'float' : flotingPointReStr }
-subresultRe = re.compile(subresultReStr)
+subClassificationRe = re.compile(subClassificationReStr)
 
-class ClassifyResult:
+class Classification:
     """
     Holds the result of a CRM114 classification.
 
     Fields:
-    bestMatch: the name of the model file that represents the best match
+    bestMatch: the ModelMatch that represents the best match
     totalFeatures: the number of features extracted from in the input data
-    model: a dict that maps model filenames to SubResult objects
+    model: a dict that maps model filenames to ModelMatch objects
     dict: a dictionary representation of the CRM114 classification
     """
 
-    class SubResult:
+    class ModelMatch:
 
-        def __init__(self, resultLine):
+        def __init__(self, modelLine):
             """
-            For a particular CRM114 classification, there is one SubResult object for each model used in the
-            classification. Each SubResult object stores information about how closely the input data matches the model.
+            For a particular CRM114 classification, there is one ModelMatch object for each model used in the
+            classification. Each ModelMatch object stores information about how closely the input data matches the model.
 
             Fields:
-            model: which model this subresult is for
+            model: which model this ModelMatch is for
             features: the number of features that have been learned into this model
             hits: the number of features in input that that hit the model-
             pr: the pR score that represents the likelihood that the input data matches this model. Typically a value in
@@ -98,32 +98,33 @@ class ClassifyResult:
                 "Why pR?" on page 171 of the CRM114 book.
             prob: the "probability" that the input data matches this model. pr scores are better.
             """
-            match = subresultRe.match(resultLine)
+            match = subClassificationRe.match(modelLine)
             if not match:
-                raise ValueError("Could not parse resultLine: %s" % resultLine)
+                raise ValueError("Could not parse modelLine: %s" % modelLine)
             self.model = match.group('model')
             self.features = int(match.group('features'))
             self.hits = int(match.group('hits'))
             self.pr = float(match.group('pr'))
             self.prob = float(match.group('prob'))
 
-    def __init__(self, resultString):
-        match = resultRe.match(resultString)
+    def __init__(self, classificationString):
+        match = classificationRe.match(classificationString)
         if not match:
-            raise ValueError("Could not parse resultString: %s" % resultString)
-        self.bestMatch = match.group('bestMatch')
+            raise ValueError("Could not parse classificationString: %s" % classificationString)
         self.totalFeatures = int(match.group('totalFeatures'))
 
-        lines = resultString.split("\n")
-        subresultLines = filter(lambda line: line.startswith("#"), lines)
+        lines = classificationString.split("\n")
+        modelLines = filter(lambda line: line.startswith("#"), lines)
 
-        subresults = [ClassifyResult.SubResult(line) for line in subresultLines]
-        pairs = [(result.model, result) for result in subresults]
+        modelMatches = [Classification.ModelMatch(line) for line in modelLines]
+        pairs = [(modelMatch.model, modelMatch) for modelMatch in modelMatches]
 
         self.model = dict(pairs)
 
+        self.bestMatch = self.model[match.group('bestMatch')]
+
         # just a dict representation of object; for debugging and testing
-        self.dict = {"bestMatch" : self.bestMatch, "totalFeatures" : self.totalFeatures, \
+        self.dict = {"bestMatch" : self.bestMatch.__dict__, "totalFeatures" : self.totalFeatures, \
             "model" : dict([(pair[0], pair[1].__dict__ ) for pair in self.model.iteritems()]) }
 
     def __str__(self):
@@ -133,34 +134,76 @@ class ClassifyResult:
 class Crm114Error(Exception):
     pass
 
-def runcrm(data, command):
-    p = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    p.stdin.write(data)
-    (stdout, stderr) = p.communicate()
-    if stderr != "" or p.returncode != 0:
-        raise Crm114Error(stdout + stderr)
-    return stdout
+# implemented as a class for mockability
+class CrmRunner:
+
+    def run(self, data, command):
+        p = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        p.stdin.write(data)
+        (stdout, stderr) = p.communicate()
+        if stderr != "" or p.returncode != 0:
+            raise Crm114Error(stdout + stderr)
+        return stdout
 
 class Crm114:
 
-    def __init__(self, models, learnMethod = defaultLearnMethod):
+    def __init__(self, models, learnMethod = defaultLearnMethod, threshold = None, trainOnError = False,
+            crmRunner = None):
         """
         models -- list of all model filenames
         learnMethod -- a string a describing a valid CRM114 classifer. See CRM114 documentation for valid values.
+        threshold -- if None, then always returns the best match according to CRM114.
+            * if a number, then the classify method will post-process CRM114's classification; the bestMatch must have a
+              pr score of at least threshold (or equal to threshold). Otherwise, the behavior of classify depends on the
+              number of models.
+                * if there are two models, then classify will set bestMatch to the other model
+                * if there are more than two models, then classify will set bestMatch to None
         """
-        self.learnMethod = learnMethod
+        if len(models) < 2:
+            raise ValueError("models must contain at least two model filenames")
         self.models = models
         self.modelsStr = " ".join(models)
 
+        if len(models) == 2:
+            self.otherModel = { self.models[0] : self.models[1],
+                                self.models[1] : self.models[0] }
+        else:
+            self.otherModel = {}
+
+        self.learnMethod = learnMethod
+        self.threshold = threshold
+        self.trainOnError = trainOnError
+
+        if crmRunner == None:
+            self.crmRunner = CrmRunner()
+        else:
+            self.crmRunner = crmRunner
+
     def classify(self, data):
+        """return the Classification from running crm114 on data"""
         command = [crmBinary,  classifyTemplate % {"learnMethod" : self.learnMethod, "models" : self.modelsStr} ]
-        return ClassifyResult(runcrm(data, command))
+        classification = Classification(self.crmRunner.run(data, command))
+        if self.threshold != None and classification.bestMatch.pr < self.threshold:
+            # new bestMatch == None iff len(models) > 2
+            classification.bestMatch = self.otherModel.get[classification.bestMatch.model]
+        return classification
 
     def learn(self, data, model):
-        if model not in self.models:
-            raise ValueError("Invalid model file: %s" % model)
-        command = [crmBinary,  learnTemplate % {"learnMethod" : self.learnMethod, "model" : model} ]
-        runcrm(data, command)
+        """
+        if not trainOnError (default), then learn the data into the specified given model file.
+        if trainOnError, then only learn the data into the specified given model file when the classifer makes a
+        mistake.
+        returns True if learned, returns False otherwise
+        """
+        if self.trainOnError and self.classify(data).bestMatch != None and self.classify(data).bestMatch.model == model:
+            # no need to learn because the classifier already knows how to correctly classify data
+            return False
+        else:
+            if model not in self.models:
+                raise ValueError("Invalid model file: %s" % model)
+            command = [crmBinary,  learnTemplate % {"learnMethod" : self.learnMethod, "model" : model} ]
+            self.crmRunner.run(data, command)
+            return True
 
 if __name__ == "__main__":
 
@@ -170,8 +213,9 @@ if __name__ == "__main__":
         "Default: '%(default)s'")
     parser.add_argument("-l", "--learn", help="learn the text from stdin into the LEARN model file.")
     parser.add_argument("-c", "--classify", nargs="+", help="learn the text from stdin into the LEARN model file.")
+    parser.add_argument("-t", "--toe", action='store_true', help="set this flag to with --learn, to only 'train on " +
+        " error.'")
     args = parser.parse_args()
-
 
     if args.learn == None and args.classify == None :
         parser.print_help()
@@ -181,12 +225,13 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
     elif args.learn != None:
-        crm = Crm114(args.learn, args.method)
+        crm = Crm114(args.learn, args.method, None, args.toe)
         crm.learn(sys.stdin.read(), args.learn)
     else:
         assert(args.classify != None)
         crm = Crm114(args.classify, args.method)
-        crm.classify(sys.stdin.read())
+        classification = crm.classify(sys.stdin.read())
+        print json.dumps(classification.dict, indent=4, sort_keys=True)
 
 
 
