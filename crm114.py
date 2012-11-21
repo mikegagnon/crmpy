@@ -184,7 +184,7 @@ class Crm114:
         classification = Classification(self.crmRunner.run(data, command))
         if self.threshold != None and classification.bestMatch.pr < self.threshold:
             # new bestMatch == None iff len(models) > 2
-            classification.bestMatch = self.otherModel.get[classification.bestMatch.model]
+            classification.bestMatch = self.otherModel.get(classification.bestMatch.model)
         return classification
 
     def learn(self, data, model):

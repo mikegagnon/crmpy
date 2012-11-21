@@ -46,7 +46,7 @@ class MockCrmRunner:
 
 class TestCrm114(unittest.TestCase):
 
-    def test_Classification(self):
+    def test_Classification_class(self):
         result = Classification(crmResultSpam)
         self.assertEqual(result.bestMatch.model, "spam.css")
         self.assertEqual(result.totalFeatures, 2452)
@@ -61,6 +61,13 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(result.model["ham.css"].hits, 301)
         self.assertEqual(result.model["ham.css"].features, 856)
 
+    def test_Crm114_class(self):
+
+        crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
+        self.assertEqual(crm.classify("foo").dict, Classification(crmResultSpam).dict)
+
+        crm = Crm114(["spam.css", "ham.css"], threshold = 130.0, trainOnError = False, crmRunner = MockCrmRunner())
+        self.assertNotEqual(crm.classify("foo").dict, Classification(crmResultSpam).dict)
 
 if __name__ == '__main__':
     unittest.main()
