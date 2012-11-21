@@ -61,12 +61,11 @@ learnOptions = [
 flotingPointReStr = r"(\+|-)?\d+\.?\d*(e(\+|-))?\d*"
 
 # uh oh, just peeked at Crm's source and it looks like each learnMethod has its own output format.
-classificationReStr = r"""CLASSIFY succeeds; success probability:\s+(?P<successProbability>%(float)s)\s+pR:\s+(?P<successPr>%(float)s)
-Best match to file #\d+\s+\((?P<bestMatch>.*)\)\s+prob:\s+(?P<matchProbability>%(float)s)\s+pR:\s+(?P<matchPr>%(float)s)  
+classificationReStr = r"""CLASSIFY succeeds; success probability:\s+(?P<successProbability>%(float)s)\s+pR:\s+(?P<successPr>%(float)s)\s*
+Best match to file #\d+\s+\((?P<bestMatch>.*)\)\s+prob:\s+(?P<matchProbability>%(float)s)\s+pR:\s+(?P<matchPr>%(float)s)\s*
 Total features in input file:\s+(?P<totalFeatures>\d+)""" % { 'float' : flotingPointReStr }
 classificationRe = re.compile(classificationReStr) 
 
-#0 (python.css): features: 2922, hits: 0, prob: 5.00e-01, pR:   0.00 
 subClassificationReStr = r"#\d+\s+\((?P<model>.*)\):\s+features:\s+(?P<features>\d+),\s+hits:\s+(?P<hits>\d+),\s+prob:\s+" + \
     r"(?P<prob>%(float)s),\s+pR:\s+(?P<pr>%(float)s)" % { 'float' : flotingPointReStr }
 subClassificationRe = re.compile(subClassificationReStr)
