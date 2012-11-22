@@ -17,6 +17,7 @@
 
 from crm114 import *
 import json
+import os
 import unittest
 
 crmResultModels2 = """CLASSIFY succeeds; success probability: 1.0000  pR: %(bestMatchPr)s
@@ -44,6 +45,19 @@ class MockCrmRunner:
     def run(self, data, command):
         return crmResultSpam
 
+TEST_DIR = "testdata"
+HAM_FILENAME = os.path.join(TEST_DIR, "ham.css")
+SPAM_FILENAME = os.path.join(TEST_DIR, "spam.css")
+TUNA_FILENAME = os.path.join(TEST_DIR, "tuna.css")
+
+def freshTestDir():
+    """creates a fresh testing directory if it doesn't already exist"""
+    if not os.path.exists(TEST_DIR):
+        os.mkdir(TEST_DIR)
+    for filename in [HAM_FILENAME, SPAM_FILENAME, TUNA_FILENAME]:
+        if os.path.exists(filename):
+            os.remove(filename)
+
 class TestCrm114(unittest.TestCase):
 
     def test_Classification_class(self):
@@ -61,7 +75,7 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(result.model["ham.css"].hits, 301)
         self.assertEqual(result.model["ham.css"].features, 856)
 
-    def test_Crm114_classify(self):
+    def test_Crm114_classify_mock(self):
 
         classification = Classification(crmResultSpam)
         crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
@@ -104,8 +118,10 @@ class TestCrm114(unittest.TestCase):
         classification.bestMatch = None
         self.assertEqual(crm.classify("foo").dict(), classification.dict())
 
-    def test_Crm114_learn(self):
+    def test_Crm114_learn_mock(self):
         
+        freshTestDir()
+
         classification = Classification(crmResultSpam)
         crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
 
@@ -122,6 +138,9 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(crm.learn("foo", "spam.css"), False)
         self.assertEqual(crm.learn("foo", "ham.css"), True)
         self.assertEqual(crm.learn("foo", "foo.css"), True)
+
+    def test_Crm114_learn_classify_default(self):
+        pass
 
 
 

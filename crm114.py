@@ -38,13 +38,13 @@ import sys
 
 import json
 
-classifyTemplate = "-{ isolate (:stats:); classify <%(learnMethod)s> (%(models)s) (:stats:); output /:*:stats:/ }"
-learnTemplate = "-{ learn <%(learnMethod)s> ( %(model)s ) }"
+classifyTemplate = "-{ isolate (:stats:); classify <%(classifier)s> (%(models)s) (:stats:); output /:*:stats:/ }"
+learnTemplate = "-{ learn <%(classifier)s> ( %(model)s ) }"
 crmBinary = "crm"
 
 # See Section "Current Classifiers in CRM114" in the CRM114 book for explanations
-defaultLearnMethod = "osb unique microgroom"
-learnMethods = [
+defaultClassifier = "osb unique microgroom"
+classifiers = [
     "",             # Markovian
     "osb",          # Orthogonal Sparse Bigram
     "osbf",         # similar to OSB, but uses some heuristic improvements that sometimes improves accuracy
@@ -60,7 +60,7 @@ learnOptions = [
 # regex to match the floating point values, as produced by Crm114
 flotingPointReStr = r"(\+|-)?\d+\.?\d*(e(\+|-))?\d*"
 
-# uh oh, just peeked at Crm's source and it looks like each learnMethod has its own output format.
+# uh oh, just peeked at Crm's source and it looks like each classifier has its own output format.
 classificationReStr = r"""CLASSIFY succeeds; success probability:\s+(?P<successProbability>%(float)s)\s+pR:\s+(?P<successPr>%(float)s)\s*
 Best match to file #\d+\s+\((?P<bestMatch>.*)\)\s+prob:\s+(?P<matchProbability>%(float)s)\s+pR:\s+(?P<matchPr>%(float)s)\s*
 Total features in input file:\s+(?P<totalFeatures>\d+)""" % { 'float' : flotingPointReStr }
@@ -152,11 +152,11 @@ class CrmRunner:
 
 class Crm114:
 
-    def __init__(self, models, learnMethod = defaultLearnMethod, threshold = None, trainOnError = False,
+    def __init__(self, models, classifier = defaultClassifier, threshold = None, trainOnError = False,
             crmRunner = None):
         """
         models -- list of all model filenames
-        learnMethod -- a string a describing a valid CRM114 classifer. See CRM114 documentation for valid values.
+        classifer -- a string a describing a valid CRM114 classifer. See CRM114 documentation for valid values.
         threshold -- if None, then always returns the best match according to CRM114.
             * if a number, then the classify method will post-process CRM114's classification; the bestMatch must have a
               pr score of at least threshold (or equal to threshold). Otherwise, the behavior of classify depends on the
@@ -175,7 +175,7 @@ class Crm114:
         else:
             self.otherModel = {}
 
-        self.learnMethod = learnMethod
+        self.classifier = classifier
         self.threshold = threshold
         self.trainOnError = trainOnError
 
@@ -186,7 +186,7 @@ class Crm114:
 
     def classify(self, data):
         """return the Classification from running crm114 on data"""
-        command = [crmBinary,  classifyTemplate % {"learnMethod" : self.learnMethod, "models" : self.modelsStr} ]
+        command = [crmBinary,  classifyTemplate % {"classifier" : self.classifier, "models" : self.modelsStr} ]
         classification = Classification(self.crmRunner.run(data, command))
         if self.threshold != None and classification.bestMatch.pr < self.threshold:
             # == None iff len(models) > 2
@@ -208,14 +208,14 @@ class Crm114:
         else:
             if model not in self.models:
                 raise ValueError("Invalid model file: %s" % model)
-            command = [crmBinary,  learnTemplate % {"learnMethod" : self.learnMethod, "model" : model} ]
+            command = [crmBinary,  learnTemplate % {"classifier" : self.classifier, "model" : model} ]
             self.crmRunner.run(data, command)
             return True
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="A simple CRM114 wrapper")
-    parser.add_argument("-m", "--method", default=defaultLearnMethod, help="a string a describing a valid " +
+    parser.add_argument("-m", "--method", default=defaultClassifier, help="a string a describing a valid " +
         "CRM114 classifer. See Section 'Current Classifiers in CRM114' in the CRM114 book for valid values. " + 
         "Default: '%(default)s'")
     parser.add_argument("-l", "--learn", help="learn the text from stdin into the LEARN model file.")
