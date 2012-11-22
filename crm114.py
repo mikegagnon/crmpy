@@ -176,7 +176,7 @@ class Classification:
             "model" : dict(model) }
 
     def __str__(self):
-        return json.dumps(self.dict(), indent=4)
+        return json.dumps(self.dict(), indent=4, sort_keys = True)
 
 # Indicates an error in the execution of the crm114 binary
 class Crm114Error(Exception):
@@ -298,8 +298,7 @@ if __name__ == "__main__":
     else:
         assert(args.classify != None)
         crm = Crm114(args.classify, args.method)
-        classification = crm.classify(sys.stdin.read())
-        print json.dumps(classification.dict, indent=4, sort_keys=True)
+        print crm.classify(sys.stdin.read())
 
 
 

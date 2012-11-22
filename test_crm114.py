@@ -68,6 +68,10 @@ def freshTestDir():
 
 class TestCrm114(unittest.TestCase):
 
+    @classmethod
+    def tearDownClass(cls):
+        freshTestDir()
+
     def test_Classification_class(self):
         result = Classification(crmResultSpam)
         self.assertEqual(result.bestMatch.model, "spam.css")
