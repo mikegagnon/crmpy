@@ -1,0 +1,5 @@
+testdata
+*.pyc
+
+# crm model files
+*.css
