@@ -61,13 +61,71 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(result.model["ham.css"].hits, 301)
         self.assertEqual(result.model["ham.css"].features, 856)
 
-    def test_Crm114_class(self):
+    def test_Crm114_classify(self):
 
+        classification = Classification(crmResultSpam)
         crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
-        self.assertEqual(crm.classify("foo").dict, Classification(crmResultSpam).dict)
 
-        crm = Crm114(["spam.css", "ham.css"], threshold = 130.0, trainOnError = False, crmRunner = MockCrmRunner())
-        self.assertNotEqual(crm.classify("foo").dict, Classification(crmResultSpam).dict)
+        # 2 models; crm.threshold == None
+        crm.threshold = None
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 2 models; bestMatch.pr > crm.threshold
+        crm.threshold = 129.0
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 2 models; bestMatch.pr == crm.threshold
+        crm.threshold = 129.64
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 2 models; bestMatch.pr < crm.threshold
+        crm.threshold = 130.0
+        classification.bestMatch = classification.model["ham.css"]
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 3 models
+        crm = Crm114(["spam.css", "ham.css", "foo"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
+
+        # 3 models; crm.threshold == None
+        crm.threshold = None
+        classification.bestMatch = classification.model["spam.css"]
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 3 models; bestMatch.pr > crm.threshold
+        crm.threshold = 129.0
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 3 models; bestMatch.pr == crm.threshold
+        crm.threshold = 129.64
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+        # 3 models; bestMatch.pr < crm.threshold
+        crm.threshold = 130.0
+        classification.bestMatch = None
+        self.assertEqual(crm.classify("foo").dict(), classification.dict())
+
+    def test_Crm114_learn(self):
+        
+        classification = Classification(crmResultSpam)
+        crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
+
+        # trainOnError == False
+        self.assertEqual(crm.learn("foo", "spam.css"), True)
+        self.assertEqual(crm.learn("foo", "ham.css"), True)
+
+        crm.trainOnError = True
+        self.assertEqual(crm.learn("foo", "spam.css"), False)
+        self.assertEqual(crm.learn("foo", "ham.css"), True)
+
+        # 3 models; crm.trainOnError == True
+        crm = Crm114(["spam.css", "ham.css", "foo.css"], threshold = None, trainOnError = True, crmRunner = MockCrmRunner())
+        self.assertEqual(crm.learn("foo", "spam.css"), False)
+        self.assertEqual(crm.learn("foo", "ham.css"), True)
+        self.assertEqual(crm.learn("foo", "foo.css"), True)
+
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

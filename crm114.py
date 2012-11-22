@@ -122,12 +122,18 @@ class Classification:
 
         self.bestMatch = self.model[match.group('bestMatch')]
 
-        # just a dict representation of object; for debugging and testing
-        self.dict = {"bestMatch" : self.bestMatch.__dict__, "totalFeatures" : self.totalFeatures, \
+    def dict(self):
+        """returns a dict representation of object; for debugging and testing"""
+        if self.bestMatch:
+            bestMatch = self.bestMatch.__dict__
+        else:
+            bestMatch = None
+
+        return {"bestMatch" : bestMatch, "totalFeatures" : self.totalFeatures, \
             "model" : dict([(pair[0], pair[1].__dict__ ) for pair in self.model.iteritems()]) }
 
     def __str__(self):
-        return json.dumps(self.dict, indent=4)
+        return json.dumps(self.dict(), indent=4)
 
 # Indicates an error in the execution of the crm114 binary
 class Crm114Error(Exception):
@@ -183,8 +189,10 @@ class Crm114:
         command = [crmBinary,  classifyTemplate % {"learnMethod" : self.learnMethod, "models" : self.modelsStr} ]
         classification = Classification(self.crmRunner.run(data, command))
         if self.threshold != None and classification.bestMatch.pr < self.threshold:
-            # new bestMatch == None iff len(models) > 2
-            classification.bestMatch = self.otherModel.get(classification.bestMatch.model)
+            # == None iff len(models) > 2
+            otherModelName = self.otherModel.get(classification.bestMatch.model)
+            classification.bestMatch = classification.model.get(otherModelName)
+
         return classification
 
     def learn(self, data, model):
