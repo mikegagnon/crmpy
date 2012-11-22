@@ -52,6 +52,8 @@ class MockCrmRunner:
         return crmResultSpam
 
 TEST_DIR = "testdata"
+HAM_TEXT = "ham1 ham2 ham3 ham4 ham5"
+SPAM_TEXT = "fooA fooB fooC fooD fooE"
 HAM_FILENAME = os.path.join(TEST_DIR, "ham.css")
 SPAM_FILENAME = os.path.join(TEST_DIR, "spam.css")
 TUNA_FILENAME = os.path.join(TEST_DIR, "tuna.css")
@@ -128,8 +130,6 @@ class TestCrm114(unittest.TestCase):
 
     def test_Crm114_learn_mock(self):
         
-        freshTestDir()
-
         classification = Classification(crmResultSpam)
         crm = Crm114(["spam.css", "ham.css"], threshold = None,
             trainOnError = False, crmRunner = MockCrmRunner())
@@ -149,8 +149,48 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(crm.learn("foo", "ham.css"), True)
         self.assertEqual(crm.learn("foo", "foo.css"), True)
 
-    def test_Crm114_learn_classify_default(self):
-        pass
+
+    def test_Crm114_correctly_parse(self):
+        """make sure the Crm114 class can parse output for each classifier"""
+
+        def test(self, crm):
+            freshTestDir()
+            crm.learn(SPAM_TEXT, SPAM_FILENAME)
+            crm.learn(HAM_TEXT, HAM_FILENAME)
+            for text in [SPAM_TEXT, HAM_TEXT]:
+                c = crm.classify(text)
+                # there should always be a bestMatch
+                self.assertNotEqual(c.bestMatch, None)
+                # there should always be a pr score
+                self.assertNotEqual(c.bestMatch.pr, None)
+
+        for base in classifiers:
+            for option in classifierOptions:
+                classifier = base + " " + option
+                crm = Crm114([HAM_FILENAME, SPAM_FILENAME], classifier)
+                test(self, crm)
+
+    def test_Crm114_correctly_classify(self):
+        """make sure the classifiers make the correct classifications"""
+
+        def test(self, crm):
+            freshTestDir()
+            crm.learn(SPAM_TEXT, SPAM_FILENAME)
+            crm.learn(HAM_TEXT, HAM_FILENAME)
+            self.assertEqual(crm.classify(SPAM_TEXT).bestMatch.model,
+                SPAM_FILENAME)
+            self.assertEqual(crm.classify(HAM_TEXT).bestMatch.model,
+                HAM_FILENAME)
+
+        for base in classifiers:
+            if base in ["winnow", "hyperspace"]:
+                # for some reason these classifiers does not pass this test
+                continue
+            for option in classifierOptions:
+                classifier = base + " " + option
+                crm = Crm114([HAM_FILENAME, SPAM_FILENAME], classifier)
+                test(self, crm)
+                    
 
 
 

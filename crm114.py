@@ -58,7 +58,7 @@ classifiers = [
     "hyperspace",   # calculates distance between unkown text and learned texts
     "entropy crosslink"] # the model that leads to lowest entropy for unknown
                          # text is the winner
-learnOptions = [
+classifierOptions = [
     "unigram",      # only valid for OSB, Winnow, and Hyperspace. only
                     # considers unigrams, not ngrams.
     "microgroom",   # automaticall manages size of model files
@@ -70,17 +70,29 @@ flotingPointReStr = r"(\+|-)?\d+\.?\d*(e(\+|-))?\d*"
 
 # uh oh, just peeked at Crm's source and it looks like each classifier has its
 # own output format.
-classificationReStr = (r"CLASSIFY succeeds; success probability:\s+" +
-    r"(?P<successProbability>%(float)s)\s+pR:\s+(?P<successPr>%(float)s)\s*" +
-    r"Best match to file #\d+\s+\((?P<bestMatch>.*)\)\s+prob:\s+" +
-    r"(?P<matchProbability>%(float)s)\s+pR:\s+(?P<matchPr>%(float)s)\s*" +
+classificationReStr = (r"CLASSIFY succeeds;\s"
+    r"success probability:\s+(?P<successProbability>%(float)s)\s+" +
+    r"pR:\s+(?P<successPr>%(float)s)\s*" +
+    r"Best match to file #\d+\s+\((?P<bestMatch>.*)\)\s+"
+    r"(weight:\s+%(float)s\s+)?"
+    r"(prob:\s+(?P<matchProbability>%(float)s)\s+)?"
+    r"pR:\s+(?P<matchPr>%(float)s)\s*" +
     r"Total features in input file:\s+(?P<totalFeatures>\d+)""") % \
         { 'float' : flotingPointReStr }
 classificationRe = re.compile(classificationReStr) 
 
-subClassificationReStr = (r"#\d+\s+\((?P<model>.*)\):\s+features:\s+" +
-    r"(?P<features>\d+),\s+hits:\s+(?P<hits>\d+),\s+prob:\s+" +
-    r"(?P<prob>%(float)s),\s+pR:\s+(?P<pr>%(float)s)") % \
+subClassificationReStr = (r"#\d+\s+\((?P<model>.*)\):\s+" +
+    r"(features:\s+(?P<features>%(float)s)(\s+\(%(float)s%%\))?,\s+)?" +
+    r"(unseen:\s+(?P<unseen>%(float)s),\s+)?" +
+    r"(weight:\s+(?P<weight>%(float)s),\s+)?" +
+    r"(hits:\s+(?P<hits>\d+),\s+)?" +
+    r"(entropy:\s+(?P<entropy>%(float)s),\s+)?" +
+    r"(jumps:\s+(?P<jumps>\d+),\s+)?" +
+    r"(radiance:\s+(?P<radiance>%(float)s),\s+)?" +
+    r"(ufeats: \d+,\s+)?" +
+    r"(L1: \d+ L2: \d+ L3: \d+, l4: \d+\s+)?" +
+    r"(prob:\s+(?P<prob>%(float)s),\s+)?" +
+    r"pR:\s+(?P<pr>%(float)s)") % \
         { 'float' : flotingPointReStr }
 subClassificationRe = re.compile(subClassificationReStr)
 
@@ -102,7 +114,9 @@ class Classification:
             For a particular CRM114 classification, there is one ModelMatch
             object for each model used in the classification. Each ModelMatch
             object stores information about how closely the input data matches
-            the model.
+            the model. Note, some of the fields may be None because different
+            classifiers produce values for different fields. There will always
+            be a pr field.
 
             Fields:
             model: which model this ModelMatch is for
@@ -120,10 +134,17 @@ class Classification:
             if not match:
                 raise ValueError("Could not parse modelLine: %s" % modelLine)
             self.model = match.group('model')
-            self.features = int(match.group('features'))
-            self.hits = int(match.group('hits'))
+
             self.pr = float(match.group('pr'))
-            self.prob = float(match.group('prob'))
+
+            featuresStr = match.group('features')
+            self.features = float(featuresStr) if featuresStr else None
+
+            hitsStr = match.group('hits')
+            self.hits = int(hitsStr) if hitsStr else None
+
+            probStr = match.group('prob')
+            self.prob = float(probStr) if probStr else None
 
     def __init__(self, classificationString):
         match = classificationRe.match(classificationString)
