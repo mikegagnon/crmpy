@@ -20,8 +20,8 @@ crm114.py: a Python wrapper for CRM114. Copyright 2012 Michael N. Gagnon.
 Apache License.
 
 CRM114 is a great machine learning tool. Unfortunatley, it doesn't have the
-best interface. So here's a simple Python wrapper that uses some (hopefully)
-decent default settings. Assumes you have installed crm114.
+best interface. So here's a simple Python wrapper. Assumes you have already
+installed the crm binary.
 
 CRM114:
    http://crm114.sourceforge.net/
@@ -195,6 +195,7 @@ class CrmRunner:
         return stdout
 
 class Crm114:
+    """CRM114 wrapper. Provides learn and classify methods."""
 
     def __init__(self, models, classifier = defaultClassifier,
             threshold = None, trainOnError = False, crmRunner = None):
@@ -299,6 +300,3 @@ if __name__ == "__main__":
         assert(args.classify != None)
         crm = Crm114(args.classify, args.method)
         print crm.classify(sys.stdin.read())
-
-
-

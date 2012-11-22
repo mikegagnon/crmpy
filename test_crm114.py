@@ -194,11 +194,6 @@ class TestCrm114(unittest.TestCase):
                 classifier = base + " " + option
                 crm = Crm114([HAM_FILENAME, SPAM_FILENAME], classifier)
                 test(self, crm)
-                    
-
-
-
-
 
 if __name__ == '__main__':
     unittest.main()
