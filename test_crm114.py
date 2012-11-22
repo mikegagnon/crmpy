@@ -20,12 +20,18 @@ import json
 import os
 import unittest
 
-crmResultModels2 = """CLASSIFY succeeds; success probability: 1.0000  pR: %(bestMatchPr)s
-Best match to file #1 (%(bestMatchModel)s) prob: %(bestMatchProb)s  pR: %(bestMatchPr)s 
-Total features in input file: %(totalFeatures)s
-#0 (%(bestMatchModel)s): features: %(bestMatchFeatures)s, hits: %(bestMatchHits)s, prob: %(bestMatchProb)s, pR: %(bestMatchPr)s 
-#1 (%(secondMatchModel)s): features: %(secondMatchFeatures)s, hits: %(secondMatchHits)s, prob: %(secondMatchProb)s, pR: %(secondMatchPr)s
-"""
+crmResultModels2 = (
+    "CLASSIFY succeeds; success probability: 1.0000  " +
+        "pR: %(bestMatchPr)s\n" +
+    "Best match to file #1 (%(bestMatchModel)s) prob: %(bestMatchProb)s  " +
+        "pR: %(bestMatchPr)s \n" +
+    "Total features in input file: %(totalFeatures)s\n" +
+    "#0 (%(bestMatchModel)s): features: %(bestMatchFeatures)s, " +
+        "hits: %(bestMatchHits)s, prob: %(bestMatchProb)s, " +
+        "pR: %(bestMatchPr)s \n"
+    "#1 (%(secondMatchModel)s): features: %(secondMatchFeatures)s, " +
+        "hits: %(secondMatchHits)s, prob: %(secondMatchProb)s, " +
+        "pR: %(secondMatchPr)s\n")
 
 crmResultSpam = crmResultModels2 % {
         "totalFeatures" : "2452",
@@ -78,7 +84,8 @@ class TestCrm114(unittest.TestCase):
     def test_Crm114_classify_mock(self):
 
         classification = Classification(crmResultSpam)
-        crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
+        crm = Crm114(["spam.css", "ham.css"], threshold = None,
+            trainOnError = False, crmRunner = MockCrmRunner())
 
         # 2 models; crm.threshold == None
         crm.threshold = None
@@ -98,7 +105,8 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(crm.classify("foo").dict(), classification.dict())
 
         # 3 models
-        crm = Crm114(["spam.css", "ham.css", "foo"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
+        crm = Crm114(["spam.css", "ham.css", "foo"], threshold = None,
+            trainOnError = False, crmRunner = MockCrmRunner())
 
         # 3 models; crm.threshold == None
         crm.threshold = None
@@ -123,7 +131,8 @@ class TestCrm114(unittest.TestCase):
         freshTestDir()
 
         classification = Classification(crmResultSpam)
-        crm = Crm114(["spam.css", "ham.css"], threshold = None, trainOnError = False, crmRunner = MockCrmRunner())
+        crm = Crm114(["spam.css", "ham.css"], threshold = None,
+            trainOnError = False, crmRunner = MockCrmRunner())
 
         # trainOnError == False
         self.assertEqual(crm.learn("foo", "spam.css"), True)
@@ -134,7 +143,8 @@ class TestCrm114(unittest.TestCase):
         self.assertEqual(crm.learn("foo", "ham.css"), True)
 
         # 3 models; crm.trainOnError == True
-        crm = Crm114(["spam.css", "ham.css", "foo.css"], threshold = None, trainOnError = True, crmRunner = MockCrmRunner())
+        crm = Crm114(["spam.css", "ham.css", "foo.css"], threshold = None,
+            trainOnError = True, crmRunner = MockCrmRunner())
         self.assertEqual(crm.learn("foo", "spam.css"), False)
         self.assertEqual(crm.learn("foo", "ham.css"), True)
         self.assertEqual(crm.learn("foo", "foo.css"), True)
