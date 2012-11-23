@@ -231,9 +231,6 @@ class Crm114:
 
         self.models = models
 
-        self.firstModel = models[0]
-        self.secondModel = models[1]
-
         self.classifier = classifier
         self.threshold = threshold
         self.trainOnError = trainOnError
@@ -246,17 +243,25 @@ class Crm114:
         else:
             self.crmRunner = crmRunner
 
+    def postProcess(self, classification, threshold):
+        """
+        post-process classification according to threshold
+        """
+        if threshold == None:
+            newModel = classification.bestMatch.model
+        elif classification.model[self.models[0]].pr >= threshold:
+            newModel = self.models[0]
+        else:
+            newModel = self.models[1]
+
+        classification.bestMatch = classification.model[newModel]
+
     def classify(self, data):
         """return the Classification from running crm114 on data"""
         
         c = Classification(self.crmRunner.run(data, self.classifyCommand))
 
-        if self.threshold == None:
-            return c
-        elif c.model[self.firstModel].pr >= self.threshold:
-            c.bestMatch = c.model[self.firstModel]
-        else:
-            c.bestMatch = c.model[self.secondModel]
+        self.postProcess(c, self.threshold)
 
         return c
 
