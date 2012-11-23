@@ -14,6 +14,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+# TODO: make negative thresholds work
+#
 
 """
 crm114.py: a Python wrapper for CRM114. Copyright 2012 Michael N. Gagnon.
@@ -198,12 +200,19 @@ class Crm114:
     """CRM114 wrapper. Provides learn and classify methods."""
 
     def __init__(self, models, classifier = defaultClassifier,
-            threshold = None, trainOnError = False, crmRunner = None):
+            threshold = None, trainOnError = False, crmRunner=None):
         """
         models -- list of all model filenames
         classifer -- a string a describing a valid CRM114 classifer. See CRM114
             documentation for valid values.
-        threshold -- if None, then always returns the best match according to
+        threshold -- affects how classify() chooses bestMatch, but threshold
+            only makes sense when there are two models.
+            if len(models) > 2 then threshold must be None
+            if len(models) == 2 and threshold == None, then classify() just
+                yields the bestMatch given by the CRM114 binary.
+            if len(models) == 2 and threshold != None, then classify() sets
+                bestMatch to firstModel, iff firstmodel's pr score >= threshold
+        if None, then always returns the best match according to
             CRM114.
             * if a number, then the classify method will post-process CRM114's
               classification; the bestMatch must have a pr score of at least
@@ -214,20 +223,23 @@ class Crm114:
                 * if there are more than two models, then classify will set
                   bestMatch to None
         """
+
         if len(models) < 2:
             raise ValueError("models must contain at least 2 model filenames")
-        self.models = models
-        self.modelsStr = " ".join(models)
+        if len(models) > 2 and threshold != None:
+            raise ValueError("threshold only makes sense when len(models)==2")
 
-        if len(models) == 2:
-            self.otherModel = { self.models[0] : self.models[1],
-                                self.models[1] : self.models[0] }
-        else:
-            self.otherModel = {}
+        self.models = models
+
+        self.firstModel = models[0]
+        self.secondModel = models[1]
 
         self.classifier = classifier
         self.threshold = threshold
         self.trainOnError = trainOnError
+
+        self.classifyCommand = [crmBinary, classifyTemplate %
+            { "classifier" : self.classifier, "models" : " ".join(models) }]
 
         if crmRunner == None:
             self.crmRunner = CrmRunner()
@@ -236,16 +248,15 @@ class Crm114:
 
     def classify(self, data):
         """return the Classification from running crm114 on data"""
-        command = [ crmBinary,
-                    classifyTemplate % { "classifier" : self.classifier,
-                                         "models" : self.modelsStr } ]
-        c = Classification(self.crmRunner.run(data, command))
-        if (self.threshold != None and
-            c.bestMatch.pr < self.threshold):
+        
+        c = Classification(self.crmRunner.run(data, self.classifyCommand))
 
-            # == None iff len(models) > 2
-            otherModelName = self.otherModel.get(c.bestMatch.model)
-            c.bestMatch = c.model.get(otherModelName)
+        if self.threshold == None:
+            return c
+        elif c.model[self.firstModel].pr >= self.threshold:
+            c.bestMatch = c.model[self.firstModel]
+        else:
+            c.bestMatch = c.model[self.secondModel]
 
         return c
 
