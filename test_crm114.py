@@ -21,7 +21,7 @@ import mock
 import os
 import unittest
 
-crmResultSpamString = mock.classificationString(0,
+crmResultSpamString = mock.classificationString(
             [mock.model("spam.css", 1461, 16572, 1.0, 129.64),
              mock.model("ham.css", 856, 301, 4.82e-131, -90.32)],
             totalFeatures = 2452)
