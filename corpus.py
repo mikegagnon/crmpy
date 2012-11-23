@@ -49,11 +49,27 @@ class Accuracy:
         self.precision = float(tp) / (tp + fp)
         self.recall = float(tp) / (tp + fn)
 
-def learnClassify(crm, learnItems, classifyItems):
+DEFAULT_MODEL_PATH = "temp_models"
+
+def freshDir(models, path):
+    """
+    creates a fresh directory for cross validation, if it doesn't already
+    exist
+    """
+    if not os.path.exists(path):
+        os.mkdir(path)
+    for model in models:
+        filename = os.path.join(path, model)
+        if os.path.exists(filename):
+            os.remove(filename)
+
+def learnClassify(crm, learnItems, classifyItems, path = DEFAULT_MODEL_PATH):
     """
     learnItems and classifyItems are a lists of LabeledItem objects
     for each item in classifyItems, sets item.classification
     """
+    
+    freshDir(crm.models, path)
 
     for item in self.learnItems:
         crm.learn(item.data, item.actualModel)
@@ -85,7 +101,7 @@ def partition(items, folds):
 
     return result
 
-def genCrossValidate(items, folds = 10):
+def genCrossValidate(items, folds):
     """
     generates a series of (learnItems, classifyItems) pairs
     """
@@ -98,6 +114,14 @@ def genCrossValidate(items, folds = 10):
         learn = [item for part in learnParts for item in part]
         classify = parts[fold]
         yield (learn, classify)
+
+def crossValidate(crm, items, folds = 10, path = DEFAULT_MODEL_PATH):
+    """
+    classififies every item using cross validation
+    """
+
+    for learn, classify in genCrossValidate(items, folds):
+        learnClassify(crm, learn, classify, path):
 
 def accuracy(crm, items, threshold):
     """
