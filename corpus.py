@@ -49,58 +49,89 @@ class Accuracy:
         self.precision = float(tp) / (tp + fp)
         self.recall = float(tp) / (tp + fn)
 
-class Corpus:
+def learnClassify(crm, learnItems, classifyItems):
+    """
+    learnItems and classifyItems are a lists of LabeledItem objects
+    for each item in classifyItems, sets item.classification
+    """
 
-    def __init__(self, crm, learnItems, classifyItems):
-        """
-        crm is a Crm114 object
-        learnItems and classifyItems are a lists of LabeledItem objects
-        """
+    for item in self.learnItems:
+        crm.learn(item.data, item.actualModel)
 
-        self.crm = crm
-        self.learnItems = learnItems
-        self.classifyItems = classifyItems
+    for item in self.classifyItems:
+        item.classification = crm.classify(item.data)        
 
-        for item in self.learnItems:
-            self.crm.learn(item.data, self.actualModel)
+def partition(items, folds):
+    """
+    items is a list; divide items into approximately equal folds
+    """
+    small_fold_size = len(items) / folds
+    big_fold_size = small_fold_size + 1
 
-        for item in self.classifyItems:
-            item.classification = self.crm.classify(item.data)        
+    num_big_folds = len(items) % folds
+    num_small_folds = folds - num_big_folds
 
-    def accuracy(self, threshold):
-        """
-        computes the accuracy metrics for each model, assuming threshold
-        returns a dict that maps the model name to its Accuracy object
-        """
+    result = []
+    for i in xrange(0, num_big_folds):
+        subresult = items[0 : big_fold_size]
+        result.append(subresult)
+        items = items[big_fold_size:]
+    for i in xrange(0, num_small_folds):
+        subresult = items[0 : small_fold_size]
+        result.append(subresult)
+        items = items[small_fold_size:]
 
-        accuracy = {}
+    assert(len(items) == 0)
 
-        # post process all classified items
-        for item in self.classifyItems:
-            self.crm.postProcess(item.classification, threshold)
+    return result
 
-        # bookmark
-        for m in self.crm.models:
+def genCrossValidate(items, folds = 10):
+    """
+    generates a series of (learnItems, classifyItems) pairs
+    """
 
-            # assuming m is the positive-model
-            actualPositives = filter(lambda i: i.actualModel == m,
-                self.classifyItems)
-            actualNegatives = filter(lambda i: i.actualModel != m,
-                self.classifyItems)
+    parts = partition(items, folds)
 
-            tp = sum(i.classification.bestMatch.model == m for i in
-                actualPositives)
-            fn = sum(i.classification.bestMatch.model != m for i in
-                actualPositives)
-            
-            fp = sum(i.classification.bestMatch.model == m for i in
-                actualNegatives)
-            tn = sum(i.classification.bestMatch.model != m for i in
-                actualNegatives)
+    for fold in xrange(0, folds):
+        learnParts = parts[:]
+        del(learnParts[fold])
+        learn = [item for part in learnParts for item in part]
+        classify = parts[fold]
+        yield (learn, classify)
 
-            accuracy[m] = Accuracy(tp, fp, tn, fn)
+def accuracy(crm, items, threshold):
+    """
+    computes the accuracy metrics for each model
+    returns a dict that maps the model name to its Accuracy object
+    """
 
-        return accuracy
+    accuracy = {}
 
-            
+    # post process all classified items
+    for item in items:
+        crm.postProcess(item.classification, threshold)
+
+    # bookmark
+    for m in crm.models:
+
+        # assuming m is the positive-model
+        actualPositives = filter(lambda i: i.actualModel == m, items)
+        actualNegatives = filter(lambda i: i.actualModel != m, items)
+
+        tp = sum(i.classification.bestMatch.model == m for i in
+            actualPositives)
+        fn = sum(i.classification.bestMatch.model != m for i in
+            actualPositives)
+        
+        fp = sum(i.classification.bestMatch.model == m for i in
+            actualNegatives)
+        tn = sum(i.classification.bestMatch.model != m for i in
+            actualNegatives)
+
+        accuracy[m] = Accuracy(tp, fp, tn, fn)
+
+    return accuracy
+
+
+
 
