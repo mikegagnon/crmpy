@@ -21,7 +21,6 @@ import mock
 
 import unittest
 
-
 class TestCorpus(unittest.TestCase):
 
     def test_accuracy(self):
@@ -93,8 +92,6 @@ class TestCorpus(unittest.TestCase):
         self.assertEquals(accuracy["spam.css"].fn, 2)
         self.assertEquals(accuracy["spam.css"].precision, 1.0 / 2.0)
         self.assertEquals(accuracy["spam.css"].recall, 1.0 / 3.0)
-
-
 
 if __name__ == '__main__':
     unittest.main()
