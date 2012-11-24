@@ -193,7 +193,7 @@ class CrmRunner:
         p.stdin.write(data)
         (stdout, stderr) = p.communicate()
         if stderr != "" or p.returncode != 0:
-            raise Crm114Error(stdout + stderr)
+            raise Crm114Error("commond = " + str(command) + "\n" + stdout + stderr)
         return stdout
 
 class Crm114:
@@ -290,7 +290,7 @@ class Crm114:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="A simple CRM114 wrapper")
-    parser.add_argument("-m", "--method", default=defaultClassifier,
+    parser.add_argument("--classifier", default=defaultClassifier,
         help="a string a describing a valid CRM114 classifer. See Section " +
              "'Current Classifiers in CRM114' in the CRM114 book for valid " +
              "values. Default: '%(default)s'")
@@ -310,9 +310,9 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
     elif args.learn != None:
-        crm = Crm114(args.learn, args.method, None, args.toe)
+        crm = Crm114(args.learn, args.classifier, None, args.toe)
         crm.learn(sys.stdin.read(), args.learn)
     else:
         assert(args.classify != None)
-        crm = Crm114(args.classify, args.method)
+        crm = Crm114(args.classify, args.classifier)
         print crm.classify(sys.stdin.read())

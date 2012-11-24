@@ -28,7 +28,14 @@ where:
     fn = the number of times an X-item was misclassified as not X
 """
 
-#from crm114 import *
+import crm114
+
+import argparse
+import os
+import random
+import sys
+
+import json
 
 class LabeledItem:
 
@@ -38,6 +45,17 @@ class LabeledItem:
 
         # holds the classification according to CRM114
         self.classification = classification
+
+def lineitems(path, model):
+    """
+    creates a list of LabeledItem objects, by reading one data item per line
+    from path.
+    """
+
+    with open(path, "r") as f:
+        lines = f.readlines()
+
+    return [LabeledItem(line, model) for line in lines]
 
 class Accuracy:
 
@@ -49,32 +67,32 @@ class Accuracy:
         self.precision = float(tp) / (tp + fp)
         self.recall = float(tp) / (tp + fn)
 
-DEFAULT_MODEL_PATH = "temp_models"
-
-def freshDir(models, path):
+def delmodels(models):
     """
-    creates a fresh directory for cross validation, if it doesn't already
-    exist
+    deletes models if they exist
     """
-    if not os.path.exists(path):
-        os.mkdir(path)
     for model in models:
-        filename = os.path.join(path, model)
-        if os.path.exists(filename):
-            os.remove(filename)
+        if os.path.exists(model):
+            os.remove(model)
 
-def learnClassify(crm, learnItems, classifyItems, path = DEFAULT_MODEL_PATH):
+def learnClassify(crm, learnItems, classifyItems):
     """
     learnItems and classifyItems are a lists of LabeledItem objects
     for each item in classifyItems, sets item.classification
     """
-    
-    freshDir(crm.models, path)
 
-    for item in self.learnItems:
+    delmodels(crm.models)
+
+    i = 0
+    for item in learnItems:
+        i += 1
+        print "learn %d/%d" % (i, len(learnItems))
         crm.learn(item.data, item.actualModel)
 
-    for item in self.classifyItems:
+    i = 0
+    for item in classifyItems:
+        i += 1
+        print "classify %d/%d" % (i, len(classifyItems))
         item.classification = crm.classify(item.data)        
 
 def partition(items, folds):
@@ -115,13 +133,37 @@ def genCrossValidate(items, folds):
         classify = parts[fold]
         yield (learn, classify)
 
-def crossValidate(crm, items, folds = 10, path = DEFAULT_MODEL_PATH):
+def crossValidateFold(crm, items, folds = 10):
     """
-    classififies every item using cross validation
+    classififies every item using N-fold cross validation
+    """
+    items = items[:]
+    random.shuffle(items)
+
+    i = 0
+    for learn, classify in genCrossValidate(items, folds):
+        i += 1
+        print "testing fold %d" % i
+        learnClassify(crm, learn, classify)
+
+def crossValidate(crm, items, train_size = 0.8):
+    """
+    trains on training_size-proportion of items, classifies the rest.
+    Returns the items that were classified
     """
 
-    for learn, classify in genCrossValidate(items, folds):
-        learnClassify(crm, learn, classify, path):
+    items = items[:]
+    random.shuffle(items)
+
+    if train_size <= 0.0 or train_size >= 1.0:
+            raise ValueError("train_size must be in range (0, 1)")
+
+    splitIndex = int(len(items) * train_size)
+    learnItems = items[:splitIndex]
+    classifyItems = items[splitIndex:]
+    learnClassify(crm, learnItems, classifyItems)
+
+    return classifyItems
 
 def accuracy(crm, items, threshold):
     """
@@ -157,5 +199,65 @@ def accuracy(crm, items, threshold):
     return accuracy
 
 
+def pathToModel(path, modelDir):
+    """
+    converts path == "foo/bar/modelname.txt" to "modelDir/modelname.css"
+    """
+    oldBasename = os.path.basename(path)
+    newBasename = os.path.splitext(oldBasename)[0] + ".css"
+    return os.path.join(modelDir, newBasename)
 
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Tests CRM114 against a " +
+            "corpus of lablled data")
+    parser.add_argument("--classifier", default=crm114.defaultClassifier,
+        help="a string a describing a valid CRM114 classifer. See Section " +
+             "'Current Classifiers in CRM114' in the CRM114 book for valid " +
+             "values. Default: '%(default)s'")
+    parser.add_argument("-f", "--fold", default=10, type=int,
+        help="perform FOLD-fold cross validation")
+    parser.add_argument("--train_size", default=None, type=float,
+        help="use TRAIN_SIZE proportion of the data as the training set. " +
+             "If defined, then overrides --fold.") 
+    parser.add_argument("-l", "--linedata", nargs="+",
+        help="for each line LINEDATA file, read line of data an label it " + 
+             "after LINEDATA")
+    parser.add_argument("--limit", type=int,
+        help="limit each set model data to LIMIT items")
+    parser.add_argument("-t", "--toe", action='store_true',
+        help="set this flag to only 'train on error.'")
+    args = parser.parse_args()
+
+    if args.linedata == None or len(args.linedata) < 2:
+        sys.stderr.write("You must specify at least two datasets\n")
+        parser.print_help()
+        sys.exit(1)
+
+    model_dir = "temp_models"
+    if not os.path.exists(model_dir):
+        os.mkdir(model_dir)
+
+    models = [pathToModel(linedata, model_dir) for linedata in args.linedata]
+
+    items = []
+
+    for (path, model) in zip(args.linedata, models):
+        newItems = lineitems(path, model)
+        if args.limit != None:
+            newItems = newItems[:args.limit]
+        print "loaded %d %s items" %(len(newItems), model)
+        items += newItems
+
+    crm = crm114.Crm114(models, args.classifier, None, args.toe)
+
+    if args.train_size != None:
+        classifyItems = crossValidate(crm, items, args.train_size)
+
+    else:
+        crossValidateFold(crm, items, args.fold)
+        classifyItems = items
+
+    print json.dumps(accuracy(crm, classifyItems, threshold = None),
+        indent = 4, sort_keys = True, default = lambda x: x.__dict__ )
 
