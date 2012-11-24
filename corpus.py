@@ -54,7 +54,6 @@ def limitItems(items, limit):
         items = items[:limit]
     return items
 
-
 def lineitems(path, model, limit = None):
     """
     creates a list of LabeledItem objects, by reading one data item per line
@@ -193,7 +192,7 @@ def accuracy(crm, items, threshold):
 
     # post process all classified items
     for item in items:
-        crm.postProcess(item.classification, threshold)
+        crm.postprocess(item.classification, threshold)
 
     # bookmark
     for m in crm.models:
@@ -251,9 +250,18 @@ if __name__ == "__main__":
     parser.add_argument("--log", choices=["debug", "info", "warning", "error",
         "critical"], default='info',
         help="logging level. Default: %(default)s")
-    
+    parser.add_argument("--crm", type=str,
+        help="The Crm114 class to use, e.g. 'EchenCrm'; see preprocess.py")
+
     args = parser.parse_args()
     args.log = args.log.upper()
+
+    from preprocess import *
+
+    if args.crm == None:
+        crmClass = crm114.Crm114
+    else:
+        crmClass = globals()[args.crm]
 
     logger = logging.getLogger(os.path.basename(__file__))
     handler = logging.StreamHandler()
@@ -268,6 +276,7 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
 
+    logger.info("crm = %s", crmClass)
     logger.info("classifier = '%s'", args.classifier)
     logger.info("linedata = %s", args.linedata)
     logger.info("limit = %s", args.limit)
@@ -287,7 +296,7 @@ if __name__ == "__main__":
         logger.info("loaded %d %s items", len(newItems), model)
         items += newItems
 
-    crm = crm114.Crm114(models, args.classifier, None, args.toe)
+    crm = crmClass(models, args.classifier, None, args.toe)
 
     classifyItems = None
 

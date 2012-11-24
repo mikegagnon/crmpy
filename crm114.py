@@ -243,7 +243,7 @@ class Crm114:
         else:
             self.crmRunner = crmRunner
 
-    def postProcess(self, classification, threshold):
+    def postprocess(self, classification, threshold):
         """
         post-process classification according to threshold
         """
@@ -256,7 +256,7 @@ class Crm114:
 
         classification.bestMatch = classification.model[newModel]
 
-    def preProcess(self, data):
+    def preprocess(self, data):
         """
         override this to pre-process strings before classifying or learning
         """
@@ -265,10 +265,10 @@ class Crm114:
     def classify(self, data):
         """return the Classification from running crm114 on data"""
         
-        data = self.preProcess(data)
+        data = self.preprocess(data)
         c = Classification(self.crmRunner.run(data, self.classifyCommand))
 
-        self.postProcess(c, self.threshold)
+        self.postprocess(c, self.threshold)
 
         return c
 
@@ -281,7 +281,7 @@ class Crm114:
         returns True if learned; returns False otherwise
         """
 
-        data = self.preProcess(data)
+        data = self.preprocess(data)
 
         # true iff every model file exists
         allAvailable = all(os.path.exists(model) for model in self.models)
@@ -314,7 +314,16 @@ if __name__ == "__main__":
         help="learn the text from stdin into the LEARN model file.")
     parser.add_argument("-t", "--toe", action='store_true',
         help="set this flag to with --learn, to only 'train on error.'")
+    parser.add_argument("--crm", type=str,
+        help="The Crm114 class to use, e.g. 'EchenCrm'; see preprocess.py")
     args = parser.parse_args()
+
+    from preprocess import *
+
+    if args.crm == None:
+        crmClass = Crm114
+    else:
+        crmClass = globals()[args.crm]
 
     if args.learn == None and args.classify == None :
         parser.print_help()
@@ -324,9 +333,9 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
     elif args.learn != None:
-        crm = Crm114(args.learn, args.classifier, None, args.toe)
+        crm = crmClass(args.learn, args.classifier, None, args.toe)
         crm.learn(sys.stdin.read(), args.learn)
     else:
         assert(args.classify != None)
-        crm = Crm114(args.classify, args.classifier)
+        crm = crmClass(args.classify, args.classifier)
         print crm.classify(sys.stdin.read())
