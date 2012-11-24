@@ -38,9 +38,9 @@ the output parsers here.
 
 import argparse
 import re
+import os
 import subprocess
 import sys
-
 import json
 
 classifyTemplate = "-{ isolate (:stats:); classify <%(classifier)s> " + \
@@ -256,9 +256,16 @@ class Crm114:
 
         classification.bestMatch = classification.model[newModel]
 
+    def preProcess(self, data):
+        """
+        override this to pre-process strings before classifying or learning
+        """
+        return data
+
     def classify(self, data):
         """return the Classification from running crm114 on data"""
         
+        data = self.preProcess(data)
         c = Classification(self.crmRunner.run(data, self.classifyCommand))
 
         self.postProcess(c, self.threshold)
@@ -273,7 +280,14 @@ class Crm114:
             model file when the classifer makes a mistake.
         returns True if learned; returns False otherwise
         """
-        if (self.trainOnError and self.classify(data).bestMatch != None and
+
+        data = self.preProcess(data)
+
+        # true iff every model file exists
+        allAvailable = all(os.path.exists(model) for model in self.models)
+
+        if (self.trainOnError and allAvailable and
+            self.classify(data).bestMatch != None and
             self.classify(data).bestMatch.model == model):
             # no need to learn because the classifier already knows how to
             # correctly classify data

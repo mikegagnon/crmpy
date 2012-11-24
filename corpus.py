@@ -31,6 +31,7 @@ where:
 import crm114
 
 import argparse
+import logging
 import os
 import random
 import sys
@@ -46,7 +47,15 @@ class LabeledItem:
         # holds the classification according to CRM114
         self.classification = classification
 
-def lineitems(path, model):
+def limitItems(items, limit):
+    if limit != None:
+        items = items[:]
+        random.shuffle(items)
+        items = items[:limit]
+    return items
+
+
+def lineitems(path, model, limit = None):
     """
     creates a list of LabeledItem objects, by reading one data item per line
     from path.
@@ -54,6 +63,8 @@ def lineitems(path, model):
 
     with open(path, "r") as f:
         lines = f.readlines()
+
+    lines = limitItems(lines, limit)
 
     return [LabeledItem(line, model) for line in lines]
 
@@ -64,8 +75,8 @@ class Accuracy:
         self.fp = fp
         self.tn = tn
         self.fn = fn
-        self.precision = float(tp) / (tp + fp)
-        self.recall = float(tp) / (tp + fn)
+        self.precision = float(tp) / (tp + fp) if tp + fp > 0 else 0
+        self.recall = float(tp) / (tp + fn) if tp + fn > 0 else 0
 
 def delmodels(models):
     """
@@ -75,7 +86,7 @@ def delmodels(models):
         if os.path.exists(model):
             os.remove(model)
 
-def learnClassify(crm, learnItems, classifyItems):
+def learnClassify(crm, learnItems, classifyItems, logger, logHeader):
     """
     learnItems and classifyItems are a lists of LabeledItem objects
     for each item in classifyItems, sets item.classification
@@ -83,17 +94,21 @@ def learnClassify(crm, learnItems, classifyItems):
 
     delmodels(crm.models)
 
-    i = 0
-    for item in learnItems:
-        i += 1
-        print "learn %d/%d" % (i, len(learnItems))
+    for i, item in enumerate(learnItems):
         crm.learn(item.data, item.actualModel)
+        logger.debug("%slearned %d/%d, %s", logHeader, i + 1, len(learnItems),
+            item.actualModel)
 
-    i = 0
-    for item in classifyItems:
-        i += 1
-        print "classify %d/%d" % (i, len(classifyItems))
-        item.classification = crm.classify(item.data)        
+    for i, item in enumerate(classifyItems):
+        item.classification = crm.classify(item.data)
+        classifiedAs = item.classification.bestMatch.model
+        if item.actualModel == classifiedAs:
+            logger.debug("%sclassified %d/%d, correctly classified %s", logHeader,
+                i + 1, len(classifyItems), item.actualModel)
+        else:
+            logger.debug("%sclassified %d/%d, misclassified %s as %s", logHeader,
+                i + 1, len(classifyItems), item.actualModel,
+                item.classification.bestMatch.model)
 
 def partition(items, folds):
     """
@@ -131,37 +146,40 @@ def genCrossValidate(items, folds):
         del(learnParts[fold])
         learn = [item for part in learnParts for item in part]
         classify = parts[fold]
-        yield (learn, classify)
+        yield (fold + 1, learn, classify)
 
-def crossValidateFold(crm, items, folds = 10):
+def crossValidate(crm, items, folds, logger):
     """
     classififies every item using N-fold cross validation
     """
+    logger.info("crossValidate, folds = %d", folds)
+
     items = items[:]
     random.shuffle(items)
 
-    i = 0
-    for learn, classify in genCrossValidate(items, folds):
-        i += 1
-        print "testing fold %d" % i
-        learnClassify(crm, learn, classify)
+    for fold, learn, classify in genCrossValidate(items, folds):
+        logger.info("beginning fold %d", fold)
+        logHeader = "fold %d/%d, " % (fold, folds)
+        learnClassify(crm, learn, classify, logger, logHeader)
 
-def crossValidate(crm, items, train_size = 0.8):
+def holdoutValidate(crm, items, holdout, logger):
     """
-    trains on training_size-proportion of items, classifies the rest.
+    trains on (1 - holdout)-proportion of items, classifies the rest.
     Returns the items that were classified
     """
 
+    logger.info("holdoutValidate, holdout = %f", holdout)
+
     items = items[:]
     random.shuffle(items)
 
-    if train_size <= 0.0 or train_size >= 1.0:
-            raise ValueError("train_size must be in range (0, 1)")
+    if holdout <= 0.0 or holdout >= 1.0:
+            raise ValueError("holdout must be in range (0, 1)")
 
-    splitIndex = int(len(items) * train_size)
-    learnItems = items[:splitIndex]
-    classifyItems = items[splitIndex:]
-    learnClassify(crm, learnItems, classifyItems)
+    splitIndex = int(len(items) * holdout)
+    classifyItems = items[:splitIndex]
+    learnItems = items[splitIndex:]
+    learnClassify(crm, learnItems, classifyItems, logger, "")
 
     return classifyItems
 
@@ -215,49 +233,78 @@ if __name__ == "__main__":
         help="a string a describing a valid CRM114 classifer. See Section " +
              "'Current Classifiers in CRM114' in the CRM114 book for valid " +
              "values. Default: '%(default)s'")
-    parser.add_argument("-f", "--fold", default=10, type=int,
+    parser.add_argument("-o", "--output_dir", default="model/", type=str,
+        help="save final models in OUTPUT_DIR. Default: %(default)s")
+    parser.add_argument("-f", "--fold", type=int,
         help="perform FOLD-fold cross validation")
-    parser.add_argument("--train_size", default=None, type=float,
-        help="use TRAIN_SIZE proportion of the data as the training set. " +
-             "If defined, then overrides --fold.") 
+    parser.add_argument("--holdout", type=float,
+        help="use HOLDOUT proportion of the data as the classification set. " +
+             "Use the rest as the classification set. If defined, then " +
+             "overrides --fold.") 
     parser.add_argument("-l", "--linedata", nargs="+",
         help="for each line LINEDATA file, read line of data an label it " + 
              "after LINEDATA")
     parser.add_argument("--limit", type=int,
-        help="limit each set model data to LIMIT items")
+        help="limit each dataset to LIMIT items")
     parser.add_argument("-t", "--toe", action='store_true',
         help="set this flag to only 'train on error.'")
+    parser.add_argument("--log", choices=["debug", "info", "warning", "error",
+        "critical"], default='info',
+        help="logging level. Default: %(default)s")
+    
     args = parser.parse_args()
+    args.log = args.log.upper()
+
+    logger = logging.getLogger(os.path.basename(__file__))
+    handler = logging.StreamHandler()
+    handler.setLevel(args.log)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(args.log)
 
     if args.linedata == None or len(args.linedata) < 2:
         sys.stderr.write("You must specify at least two datasets\n")
         parser.print_help()
         sys.exit(1)
 
-    model_dir = "temp_models"
-    if not os.path.exists(model_dir):
-        os.mkdir(model_dir)
+    logger.info("classifier = '%s'", args.classifier)
+    logger.info("linedata = %s", args.linedata)
+    logger.info("limit = %s", args.limit)
+    logger.info("output_dir = %s", args.output_dir)
+    logger.info("toe = %s", args.toe)
 
-    models = [pathToModel(linedata, model_dir) for linedata in args.linedata]
+    if not os.path.exists(args.output_dir):
+        os.mkdir(args.output_dir)
+
+    models = [pathToModel(linedata, args.output_dir) for linedata in
+        args.linedata]
 
     items = []
 
     for (path, model) in zip(args.linedata, models):
-        newItems = lineitems(path, model)
-        if args.limit != None:
-            newItems = newItems[:args.limit]
-        print "loaded %d %s items" %(len(newItems), model)
+        newItems = lineitems(path, model, args.limit)
+        logger.info("loaded %d %s items", len(newItems), model)
         items += newItems
 
     crm = crm114.Crm114(models, args.classifier, None, args.toe)
 
-    if args.train_size != None:
-        classifyItems = crossValidate(crm, items, args.train_size)
+    classifyItems = None
 
-    else:
-        crossValidateFold(crm, items, args.fold)
+    if args.holdout != None:
+        classifyItems = holdoutValidate(crm, items, args.holdout, logger)
+    elif args.fold != None:
+        crossValidate(crm, items, args.fold, logger)
         classifyItems = items
 
-    print json.dumps(accuracy(crm, classifyItems, threshold = None),
-        indent = 4, sort_keys = True, default = lambda x: x.__dict__ )
+    logger.info("Building final model")
+    for i, item in enumerate(items):
+        logger.debug("final model learning %d/%d %s", i + 1, len(items),
+            item.actualModel)
+        crm.learn(item.data, item.actualModel)
+
+    if classifyItems != None:
+        print json.dumps(accuracy(crm, classifyItems, threshold = None),
+            indent = 4, sort_keys = True, default = lambda x: x.__dict__ )
+
 
