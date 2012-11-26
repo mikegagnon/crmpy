@@ -14,8 +14,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-# TODO: make negative thresholds work
-#
 
 """
 crm114.py: a Python wrapper for CRM114. Copyright 2012 Michael N. Gagnon.
@@ -35,6 +33,8 @@ crm114.py parses crm114's output, and because crm114's output format is not
 backwards / forwards compatible, minor version changes in CRM114 could break
 the output parsers here.
 """ 
+
+import normalize
 
 import argparse
 import re
@@ -200,7 +200,8 @@ class Crm114:
     """CRM114 wrapper. Provides learn and classify methods."""
 
     def __init__(self, models, classifier = defaultClassifier,
-            threshold = None, trainOnError = False, crmRunner=None):
+            threshold = None, trainOnError = False, normalizeFunction = None,
+            crmRunner=None):
         """
         models -- list of all model filenames
         classifer -- a string a describing a valid CRM114 classifer. See CRM114
@@ -212,16 +213,11 @@ class Crm114:
                 yields the bestMatch given by the CRM114 binary.
             if len(models) == 2 and threshold != None, then classify() sets
                 bestMatch to firstModel, iff firstmodel's pr score >= threshold
-        if None, then always returns the best match according to
-            CRM114.
-            * if a number, then the classify method will post-process CRM114's
-              classification; the bestMatch must have a pr score of at least
-              threshold (or equal to threshold). Otherwise, the behavior of
-              classify depends on the number of models.
-                * if there are two models, then classify will set bestMatch to
-                  the other model
-                * if there are more than two models, then classify will set
-                  bestMatch to None
+        if not trainOnError (default), then learn() always learns the data
+        if trainOnError, then learn() only learns the data when the classifer
+            makes a mistake when classifying the data.
+        normalizeFunction: a function that "normalizes" a string before
+            learning or classifying
         """
 
         if len(models) < 2:
@@ -234,6 +230,7 @@ class Crm114:
         self.classifier = classifier
         self.threshold = threshold
         self.trainOnError = trainOnError
+        self.normalize = normalizeFunction
 
         self.classifyCommand = [crmBinary, classifyTemplate %
             { "classifier" : self.classifier, "models" : " ".join(models) }]
@@ -265,7 +262,7 @@ class Crm114:
     def classify(self, data):
         """return the Classification from running crm114 on data"""
         
-        data = self.preprocess(data)
+        data = self.normalize(data)
         c = Classification(self.crmRunner.run(data, self.classifyCommand))
 
         self.postprocess(c, self.threshold)
@@ -274,14 +271,10 @@ class Crm114:
 
     def learn(self, data, model):
         """
-        if not trainOnError (default), then learn the data into the specified
-            given model file.
-        if trainOnError, then only learn the data into the specified given
-            model file when the classifer makes a mistake.
         returns True if learned; returns False otherwise
         """
 
-        data = self.preprocess(data)
+        data = self.normalize(data)
 
         # true iff every model file exists
         allAvailable = all(os.path.exists(model) for model in self.models)
@@ -314,16 +307,12 @@ if __name__ == "__main__":
         help="learn the text from stdin into the LEARN model file.")
     parser.add_argument("-t", "--toe", action='store_true',
         help="set this flag to with --learn, to only 'train on error.'")
-    parser.add_argument("--crm", type=str,
-        help="The Crm114 class to use, e.g. 'EchenCrm'; see preprocess.py")
+    parser.add_argument("-r", "--threshold", type=float,
+        help="threshold for pr score (see documentation in source)'")
+    parser.add_argument("-n", "--normalize", nargs="+",
+        help="A list of normalize functions, e.g. 'startEnd'; see " +
+             "normalize.py")
     args = parser.parse_args()
-
-    from preprocess import *
-
-    if args.crm == None:
-        crmClass = Crm114
-    else:
-        crmClass = globals()[args.crm]
 
     if args.learn == None and args.classify == None :
         parser.print_help()
@@ -332,10 +321,18 @@ if __name__ == "__main__":
         sys.stderr.write("Cannot learn and classify at the same time\n")
         parser.print_help()
         sys.exit(1)
-    elif args.learn != None:
-        crm = crmClass(args.learn, args.classifier, None, args.toe)
+
+    if args.learn != None:
+        models = list(args.learn)
+    else:
+        assert(args.classify != None)
+        models = args.classify
+
+    f = normalize.makeNormalizeFunction(args.normalize)
+    crm = Crm114(models, args.classifier, args.threshold, args.toe, f)
+
+    if args.learn != None:
         crm.learn(sys.stdin.read(), args.learn)
     else:
         assert(args.classify != None)
-        crm = crmClass(args.classify, args.classifier)
         print crm.classify(sys.stdin.read())

@@ -14,6 +14,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+# TODO: iterate over classifiers, output ROC data
+#
 
 """
 Tests crm114 against a labelled corpus. For each model, X, computes:
