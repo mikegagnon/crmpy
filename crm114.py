@@ -310,8 +310,9 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--threshold", type=float,
         help="threshold for pr score (see documentation in source)'")
     parser.add_argument("-n", "--normalize", nargs="+",
-        help="A list of normalize functions, e.g. 'startEnd'; see " +
-             "normalize.py")
+        help="A list of normalize functions, e.g. 'lower startEnd'; see " +
+             "normalize.py. Before learning or classifying, the input string" +
+             "will be passed through each normalize function, in order.")
     args = parser.parse_args()
 
     if args.learn == None and args.classify == None :
