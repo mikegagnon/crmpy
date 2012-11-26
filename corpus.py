@@ -15,7 +15,7 @@
 #  limitations under the License.
 #
 # TODO: iterate over classifiers, output ROC data
-#
+# TODO: map/reduce learning via cssmerge and multiprocess module
 
 """
 Tests crm114 against a labelled corpus. For each model, X, computes:

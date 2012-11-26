@@ -32,6 +32,10 @@ Tested with CRM114, version 20100106-BlameMichelson (TRE 0.8.0 (BSD)). Because
 crm114.py parses crm114's output, and because crm114's output format is not
 backwards / forwards compatible, minor version changes in CRM114 could break
 the output parsers here.
+
+Performance note: Every call to learn() or classify() invokes the Crm114 binary
+as a separate process, whose performance tends to be dominated by disk io.
+To improve performance, store your model files in a ramdisk.
 """ 
 
 import normalize
