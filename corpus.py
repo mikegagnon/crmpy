@@ -31,14 +31,15 @@ where:
 """
 
 import crm114
+import normalize
 
 import argparse
+import json
 import logging
 import os
 import random
 import sys
 
-import json
 
 class LabeledItem:
 
@@ -252,18 +253,15 @@ if __name__ == "__main__":
     parser.add_argument("--log", choices=["debug", "info", "warning", "error",
         "critical"], default='info',
         help="logging level. Default: %(default)s")
-    parser.add_argument("--crm", type=str,
-        help="The Crm114 class to use, e.g. 'EchenCrm'; see preprocess.py")
+    parser.add_argument("-n", "--normalize", nargs="+",
+        help="A list of normalize functions, e.g. 'lower startEnd'; see " +
+             "normalize.py. Before learning or classifying, the input string" +
+             "will be passed through each normalize function, in order.")
 
     args = parser.parse_args()
     args.log = args.log.upper()
 
     from preprocess import *
-
-    if args.crm == None:
-        crmClass = crm114.Crm114
-    else:
-        crmClass = globals()[args.crm]
 
     logger = logging.getLogger(os.path.basename(__file__))
     handler = logging.StreamHandler()
@@ -278,12 +276,14 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
 
-    logger.info("crm = %s", crmClass)
     logger.info("classifier = '%s'", args.classifier)
     logger.info("linedata = %s", args.linedata)
     logger.info("limit = %s", args.limit)
     logger.info("output_dir = %s", args.output_dir)
     logger.info("toe = %s", args.toe)
+    logger.info("normalize = %s", args.normalize)
+
+    normalizeFunction = normalize.makeNormalizeFunction(args.normalize)
 
     if not os.path.exists(args.output_dir):
         os.mkdir(args.output_dir)
@@ -298,7 +298,8 @@ if __name__ == "__main__":
         logger.info("loaded %d %s items", len(newItems), model)
         items += newItems
 
-    crm = crmClass(models, args.classifier, None, args.toe)
+    crm = crm114.Crm114(models, args.classifier, None, args.toe,
+        normalizeFunction)
 
     classifyItems = None
 
