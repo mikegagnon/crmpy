@@ -18,7 +18,7 @@
 # TODO: map/reduce learning via cssmerge and multiprocess module
 
 """
-Tests crm114 against a labeled corpus. For each model, X, computes:
+Tests and/or train crm114 against a labeled corpus. For each model, X, computes
 
     precision = tp / (tp + fp)
     recall =    tp / (tp + fn)
