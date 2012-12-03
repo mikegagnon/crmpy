@@ -19,6 +19,7 @@ from corpus import *
 from crm114 import *
 import mock
 
+import pprint
 import unittest
 
 class TestCorpus(unittest.TestCase):
@@ -112,11 +113,95 @@ class TestCorpus(unittest.TestCase):
         # [1,2,3,4], [5,6,7], [8,9,10]
         items = [1,2,3,4,5,6,7,8,9,10]
         learnClassifyPairs = list(genCrossValidate(items, 3))
+
         self.assertEqual(learnClassifyPairs, [
-                ([5,6,7, 8,9,10], [1,2,3,4]),
-                ([1,2,3,4, 8,9,10], [5,6,7]),
-                ([1,2,3,4, 5,6,7], [8, 9, 10])
+                (1, [5,6,7, 8,9,10], [1,2,3,4]),
+                (2, [1,2,3,4, 8,9,10], [5,6,7]),
+                (3, [1,2,3,4, 5,6,7], [8, 9, 10])
             ])
+
+    def test_minMaxPr(self):
+
+        classifyItems = [
+            # actual ham
+            LabeledItem(None, "ham.css", mock.classification(
+                [mock.model("ham.css", pr=30.2),
+                 mock.model("spam.css", pr=-18.0)]
+                )),
+            LabeledItem(None, "ham.css", mock.classification(
+                [mock.model("ham.css", pr=16.2),
+                 mock.model("spam.css", pr=-21.0)]
+                )),
+            LabeledItem(None, "ham.css", mock.classification(
+                [mock.model("ham.css", pr=57.2),
+                 mock.model("spam.css", pr=-16.0)]
+                ))
+            ]
+
+        self.assertEquals(minMaxPr(classifyItems), (-21.0, 57.2))
+
+    def test_varyThreshold(self):
+
+        crm = Crm114(["ham.css", "spam.css"])
+
+        items = [
+            # actual ham
+            # threshold -60 -> ham -> correct
+            # threshold -20 -> ham -> correct
+            # threshold  20 -> ham -> correct
+            # threshold  60 -> ham -> correct
+            LabeledItem(None, "ham.css", mock.classification(
+                [mock.model("ham.css", pr=100.0),
+                 mock.model("spam.css", pr=-100.0)]
+                )),
+            # actual ham
+            # threshold -60 -> ham -> correct
+            # threshold -20 -> ham -> correct
+            # threshold  20 -> ham -> correct
+            # threshold  60 -> spam -> mistake
+            LabeledItem(None, "ham.css", mock.classification(
+                [mock.model("ham.css", pr=20.0),
+                 mock.model("spam.css", pr=-20.0)]
+                )),
+            # actual spam
+            # threshold -60 -> ham -> mistake
+            # threshold -20 -> spam -> correct
+            # threshold  20 -> spam -> correct
+            # threshold  60 -> spam -> correct
+            LabeledItem(None, "spam.css", mock.classification(
+                [mock.model("ham.css", pr=-30.0),
+                 mock.model("spam.css", pr=30.0)]
+                )),
+            # actual spam
+            # threshold -60 -> spam -> correct
+            # threshold -20 -> spam -> correct
+            # threshold  20 -> spam -> correct
+            # threshold  60 -> spam -> correct
+            LabeledItem(None, "spam.css", mock.classification(
+                [mock.model("ham.css", pr=-100.0),
+                 mock.model("spam.css", pr=100.0)]
+                ))
+            ]
+
+        result = varyThreshold(crm, items, 4)
+        # min = -100
+        # max = 100
+        # increment = 40
+        # precision = tp / (tp + fp)
+        # recall =    tp / (tp + fn)
+        expected = {'ham.css': [
+                        (-60.0, 2.0 / 3.0, 1.0),
+                        (-20.0, 1.0, 1.0),
+                        (20.0, 1.0, 1.0),
+                        (60.0, 1.0, 0.5)],
+                    'spam.css': [
+                        (-60.0, 1.0, 0.5),
+                        (-20.0, 1.0, 1.0),
+                        (20.0, 1.0, 1.0),
+                        (60.0, 2.0/3.0, 1.0)]}
+
+        self.assertEquals(expected, result)
+
 
 if __name__ == '__main__':
     unittest.main()

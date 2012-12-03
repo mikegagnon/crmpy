@@ -218,6 +218,42 @@ def accuracy(crm, items, threshold):
 
     return accuracy
 
+def minMaxPr(items):
+    """
+    returns (min, max) where min the minimum pr score in items, and max is the
+    maximum
+    """
+    # determine lower- and upper-bounds for all pr scores
+    prScores = [model.pr for item in items for model in
+                    item.classification.model.values()]
+
+    return (min(prScores), max(prScores))
+
+def varyThreshold(crm, items, dataPoints = 100):
+    """
+    items is a list of classified LabeledItem objects.
+    Explores N different values for threshold, where N = dataPoints.
+    Returns a dict where model maps to a list of (threshold, precision, recall)
+    triples
+    """
+
+    if len(crm.models) != 2:
+        raise ValueError("varyThreshold only makes sense when there are more" +
+            " than two models")
+
+    result = dict((m, []) for m in crm.models)
+
+    low, high = minMaxPr(items)
+    increment = (high - low) / (dataPoints + 1)
+
+    threshold = low + increment
+    for i in xrange(dataPoints):
+        a = accuracy(crm, items, threshold)
+        for m in crm.models:
+            result[m].append((threshold, a[m].precision, a[m].recall))
+        threshold += increment
+
+    return result
 
 def pathToModel(path, modelDir):
     """

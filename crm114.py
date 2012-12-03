@@ -14,6 +14,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+# Tip for compiling CRM114 on OS X. Edit the make and turn off the -static flag
+#
 
 """
 crm114.py: a Python wrapper for CRM114. Copyright 2012 Michael N. Gagnon.
@@ -110,7 +112,6 @@ class Classification:
     bestMatch: the ModelMatch that represents the best match
     totalFeatures: the number of features extracted from in the input data
     model: a dict that maps model filenames to ModelMatch objects
-    dict: a dictionary representation of the CRM114 classification
     """
 
     class ModelMatch:
