@@ -89,6 +89,13 @@ class Accuracy:
     def __ne__(self, that):
         return not self.__eq__(that)
 
+def toJson(obj):
+    """
+    useful for converting structs containing accuracy objects
+    """
+    return json.dumps(obj, indent = 4, sort_keys = True,
+        default = lambda x: x.__dict__ )
+
 def delmodels(models):
     """
     deletes models if they exist
@@ -397,10 +404,8 @@ if __name__ == "__main__":
         logger.info("Building final model")
         learn(crm, items, logger, "final model")
 
-    print 1
     if classifyItems != None:
-        print 2
-        print json.dumps(accuracy(crm, classifyItems, threshold = None),
-            indent = 4, sort_keys = True, default = lambda x: x.__dict__ )
+        result = accuracy(crm, classifyItems, threshold = None)
+        print toJson(result)
 
 
