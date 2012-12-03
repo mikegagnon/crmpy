@@ -184,21 +184,24 @@ class TestCorpus(unittest.TestCase):
             ]
 
         result = varyThreshold(crm, items, 4)
+
         # min = -100
         # max = 100
         # increment = 40
-        # precision = tp / (tp + fp)
-        # recall =    tp / (tp + fn)
-        expected = {'ham.css': [
-                        (-60.0, 2.0 / 3.0, 1.0),
-                        (-20.0, 1.0, 1.0),
-                        (20.0, 1.0, 1.0),
-                        (60.0, 1.0, 0.5)],
-                    'spam.css': [
-                        (-60.0, 1.0, 0.5),
-                        (-20.0, 1.0, 1.0),
-                        (20.0, 1.0, 1.0),
-                        (60.0, 2.0/3.0, 1.0)]}
+        # Accuracy(tp, fp, tn, fn)
+        expected = {'ham.css': {
+                         -60.0 : Accuracy(2, 1, 1, 0),
+                         -20.0 : Accuracy(2, 0, 2, 0),
+                          20.0 : Accuracy(2, 0, 2, 0),
+                          60.0 : Accuracy(1, 0, 2, 1)
+                        },
+                    'spam.css': {
+                         -60.0 : Accuracy(1, 0, 2, 1),
+                         -20.0 : Accuracy(2, 0, 2, 0),
+                          20.0 : Accuracy(2, 0, 2, 0),
+                          60.0 : Accuracy(2, 1, 1, 0)
+                        }
+                    }
 
         self.assertEquals(expected, result)
 

@@ -80,6 +80,15 @@ class Accuracy:
         self.precision = float(tp) / (tp + fp) if tp + fp > 0 else 0
         self.recall = float(tp) / (tp + fn) if tp + fn > 0 else 0
 
+    def __eq__(self, that):
+        return (self.tp == that.tp and
+                self.fp == that.fp and
+                self.tn == that.tn and
+                self.fn == that.fn)
+
+    def __ne__(self, that):
+        return not self.__eq__(that)
+
 def delmodels(models):
     """
     deletes models if they exist
@@ -255,15 +264,16 @@ def varyThreshold(crm, items, dataPoints = 100):
     """
     items is a list of classified LabeledItem objects.
     Explores N different values for threshold, where N = dataPoints.
-    Returns a dict where model maps to a list of (threshold, precision, recall)
-    triples
+    Returns a result dict where:
+        result[model][threshold] = accuracy
+    where accuracy is an Accuracy object for that threshold and model
     """
 
     if len(crm.models) != 2:
         raise ValueError("varyThreshold only makes sense when there are more" +
             " than two models")
 
-    result = dict((m, []) for m in crm.models)
+    result = dict((m, dict()) for m in crm.models)
 
     low, high = minMaxPr(items)
     increment = (high - low) / (dataPoints + 1)
@@ -272,7 +282,7 @@ def varyThreshold(crm, items, dataPoints = 100):
     for i in xrange(dataPoints):
         a = accuracy(crm, items, threshold)
         for m in crm.models:
-            result[m].append((threshold, a[m].precision, a[m].recall))
+            result[m][threshold] = a[m]
         threshold += increment
 
     return result
