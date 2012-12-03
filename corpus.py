@@ -16,6 +16,7 @@
 #
 # TODO: iterate over classifiers, output ROC data
 # TODO: map/reduce learning via cssmerge and multiprocess module
+# TODO: train model, and validate model using explicit training and eval sets
 
 """
 Tests crm114 against a labelled corpus. For each model, X, computes:
