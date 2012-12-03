@@ -322,6 +322,12 @@ if __name__ == "__main__":
         help="learn the labeled data into fresh models.")
     parser.add_argument("-c", "--classify", action='store_true',
         help="classify the labeled data according to existing models") 
+    parser.add_argument("-v", "--vary_threshold", type=int, default=None,
+        help="if classifying against two models, then vary the threshold at " +
+             "VARY_THRESHOLD different data points")
+    parser.add_argument("--threshold", type=float, default=None,
+        help="if classifying against two models, then set the classification" +
+             "threshold for the first model. See crm114.py for more details.")
     parser.add_argument("--linedata", nargs="+",
         help="for each line LINEDATA file, read line of data an label it " + 
              "after LINEDATA")
@@ -352,19 +358,6 @@ if __name__ == "__main__":
         sys.stderr.write("You must specify at least two datasets\n")
         parser.print_help()
         sys.exit(1)
-
-    modeFlags = [
-        ('--learn', args.learn),
-        ('--classify', args.classify),
-        ('--holdout', args.holdout),
-        ('--fold', args.fold)]
-    modeFlagStrs = [m[0] for m in modeFlags]
-    # the set of modeFlags that are activated
-    activatedMode = [m[0] for m in modeFlags if m[1]]
-    if len(activatedMode) == 0 or len(activatedMode) > 1:
-        sys.stderr.write(("You must specify exactly one of the following " +
-            "modes: %s\n") % ", ".join(modeFlagStrs))
-        sys.exit()
 
     logger.info("classifier = '%s'", args.classifier)
     logger.info("linedata = %s", args.linedata)
@@ -400,12 +393,15 @@ if __name__ == "__main__":
     elif args.fold != None:
         classifyItems = crossValidate(crm, items, args.fold, logger)
 
-    if args.learn or args.holdout != None or args.fold != None:
+    if args.learn:
         logger.info("Building final model")
-        learn(crm, items, logger, "final model")
+        learn(crm, items, logger, "final model ")
 
     if classifyItems != None:
-        result = accuracy(crm, classifyItems, threshold = None)
+        if args.vary_threshold == None:
+            result = accuracy(crm, classifyItems, args.threshold)
+        else:
+            result = varyThreshold(crm, classifyItems, args.vary_threshold)
         print toJson(result)
 
 
